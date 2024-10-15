@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제곱근 게임</title>
+    <!-- MathJax 라이브러리 로드 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f8ff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        #start-screen, #game-screen, #end-screen {
+            display: none;
+            padding: 20px;
+        }
+        #start-screen.visible, #game-screen.visible, #end-screen.visible {
+            display: block;
+        }
+        h1 {
+            color: #2e8b57;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 15px 25px;
+            font-size: 18px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #20b2aa;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #3cb371;
+        }
+        #energy-bar {
+            width: 100%;
+            height: 25px;
+            background-color: #eee;
+            margin: 20px 0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #energy {
+            height: 100%;
+            background-color: #ff6347;
+            width: 100%;
+            transition: width 0.2s linear;
+        }
+        #stats {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #message {
+            font-size: 22px;
+            color: #dc143c;
+            margin-top: 20px;
+            min-height: 30px;
+        }
+        .question-container {
+            margin: 20px 0;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .question {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .options {
+            list-style-type: none;
+            padding: 0;
+        }
+        .options li {
+            margin: 10px 0;
+        }
+        .option-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: 2px solid #20b2aa;
+            border-radius: 8px;
+            background-color: white;
+            transition: background-color 0.3s, color 0.3s;
+            width: 100%;
+            text-align: left;
+        }
+        .option-button:hover {
+            background-color: #20b2aa;
+            color: white;
+        }
+        .option-button.correct {
+            background-color: #32cd32;
+            color: white;
+            border-color: #32cd32;
+        }
+        .option-button.incorrect {
+            background-color: #ff6347;
+            color: white;
+            border-color: #ff6347;
+        }
+        #next-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #32cd32;
+            color: white;
+            transition: background-color 0.3s;
+            display: none;
+            margin-top: 20px;
+        }
+        #next-button:hover {
+            background-color: #3cb371;
+        }
+        #results {
+            margin-top: 20px;
+            text-align: left;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            overflow-y: scroll;
+            max-height: 400px;
+        }
+        .result-item {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 시작 화면 -->
+    <div id="start-screen" class="visible">
+        <h1>제곱근 게임</h1>
+        <h2>난이도를 선택하세요</h2>
+        <button class="button" onclick="startGame('highest')">최상</button>
+        <button class="button" onclick="startGame('high')">상</button>
+        <button class="button" onclick="startGame('medium')">중</button>
+        <button class="button" onclick="startGame('low')">하</button>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen">
+        <h1>제곱근 게임</h1>
+        <div id="energy-bar">
+            <div id="energy"></div>
+        </div>
+        <div id="question-container">
+            <!-- 현재 문제가 여기 표시됩니다 -->
+        </div>
+        <div id="message"></div>
+        <button id="next-button" onclick="nextQuestion()">다음 문제</button>
+        <div id="stats">
+            <p>점수: <span id="score">0</span></p>
+            <p>남은 기회: <span id="lives">3</span></p>
+            <p>총 게임 시간: <span id="game-time">0</span>초</p>
+        </div>
+    </div>
+
+    <!-- 종료 화면 -->
+    <div id="end-screen">
+        <h1>게임 종료!</h1>
+        <p>최종 점수: <span id="final-score">0</span></p>
+        <p>총 게임 시간: <span id="final-time">0</span>초</p>
+        <div id="results">
+            <h2>정답 확인</h2>
+            <!-- 정답 결과가 여기 표시됩니다 -->
+        </div>
+        <button class="button" onclick="restartGame()">다시 시작</button>
+    </div>
+
+    <script>
+        window.onload = function() {
+            // 난이도별 설정
+            const difficultySettings = {
+                'highest': { time: 20, points: 20 },
+                'high': { time: 30, points: 15 },
+                'medium': { time: 40, points: 10 },
+                'low': { time: null, points: 5 } // '하' 난이도는 시간 제한 없음
+            };
+            let difficulty;
+            let timeLimit;
+            let score = 0;
+            let lives = 3;
+            let totalGameTime = 0;
+            let gameInterval;
+            let energyInterval;
+            let gameStartTime;
+
+            let currentQuestionIndex = 0;
+            let shuffledQuestions = [];
+
+            // 문제 및 정답 데이터
+            const problems = [
+                // 수정된 문제들
+                {
+                    type: 'MCQ',
+                    question: "\\(8\\)의 제곱근을 구하여라.",
+                    options: ["\\(\\pm 2\\sqrt{2}\\)", "\\(2\\sqrt{2}\\)", "\\(-2\\sqrt{2}\\)", "\\(4\\)"],
+                    correctAnswer: "\\(\\pm 2\\sqrt{2}\\)"
+                },
+                {
+                    type: 'MCQ',
+                    question: "\\(7\\)의 제곱근을 구하여라.",
+                    options: ["\\(\\pm \\sqrt{7}\\)", "\\(\\sqrt{7}\\)", "\\(-\\sqrt{7}\\)", "\\(7\\)"],
+                    correctAnswer: "\\(\\pm \\sqrt{7}\\)"
+                },
+              {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(4\\)를 구하여라.",
+        options: ["\\(-2\\)", "\\(2\\)", "\\(\\pm2\\)", "\\(4\\)"],
+        correctAnswer: "\\(-2\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(9\\)를 구하여라.",
+        options: ["\\(-3\\)", "\\(3\\)", "\\(\\pm3\\)", "\\(9\\)"],
+        correctAnswer: "\\(-3\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(16\\)을 구하여라.",
+        options: ["\\(-4\\)", "\\(4\\)", "\\(\\pm4\\)", "\\(16\\)"],
+        correctAnswer: "\\(-4\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(25\\)를 구하여라.",
+        options: ["\\(-5\\)", "\\(5\\)", "\\(\\pm5\\)", "\\(25\\)"],
+        correctAnswer: "\\(-5\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(36\\)을 구하여라.",
+        options: ["\\(-6\\)", "\\(6\\)", "\\(\\pm6\\)", "\\(36\\)"],
+        correctAnswer: "\\(-6\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(49\\)를 구하여라.",
+        options: ["\\(-7\\)", "\\(7\\)", "\\(\\pm7\\)", "\\(49\\)"],
+        correctAnswer: "\\(-7\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(64\\)를 구하여라.",
+        options: ["\\(-8\\)", "\\(8\\)", "\\(\\pm8\\)", "\\(64\\)"],
+        correctAnswer: "\\(-8\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(81\\)을 구하여라.",
+        options: ["\\(-9\\)", "\\(9\\)", "\\(\\pm9\\)", "\\(81\\)"],
+        correctAnswer: "\\(-9\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(100\\)을 구하여라.",
+        options: ["\\(-10\\)", "\\(10\\)", "\\(\\pm10\\)", "\\(100\\)"],
+        correctAnswer: "\\(-10\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "음의 제곱근 \\(121\\)을 구하여라.",
+        options: ["\\(-11\\)", "\\(11\\)", "\\(\\pm11\\)", "\\(121\\)"],
+        correctAnswer: "\\(-11\\)"
+    },
+
+    // 유형 2: 분모 분자가 제곱수인 분수의 제곱근을 구하는 문제
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{1}{4}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{1}{2}\\)", "\\(\\frac{1}{2}\\)", "\\(-\\frac{1}{2}\\)", "\\(\\frac{1}{4}\\)"],
+        correctAnswer: "\\(\\pm\\frac{1}{2}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{4}{9}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{2}{3}\\)", "\\(\\frac{2}{3}\\)", "\\(-\\frac{2}{3}\\)", "\\(\\frac{4}{9}\\)"],
+        correctAnswer: "\\(\\pm\\frac{2}{3}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{9}{16}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{3}{4}\\)", "\\(\\frac{3}{4}\\)", "\\(-\\frac{3}{4}\\)", "\\(\\frac{9}{16}\\)"],
+        correctAnswer: "\\(\\pm\\frac{3}{4}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{16}{25}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{4}{5}\\)", "\\(\\frac{4}{5}\\)", "\\(-\\frac{4}{5}\\)", "\\(\\frac{16}{25}\\)"],
+        correctAnswer: "\\(\\pm\\frac{4}{5}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{25}{36}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{5}{6}\\)", "\\(\\frac{5}{6}\\)", "\\(-\\frac{5}{6}\\)", "\\(\\frac{25}{36}\\)"],
+        correctAnswer: "\\(\\pm\\frac{5}{6}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{36}{49}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{6}{7}\\)", "\\(\\frac{6}{7}\\)", "\\(-\\frac{6}{7}\\)", "\\(\\frac{36}{49}\\)"],
+        correctAnswer: "\\(\\pm\\frac{6}{7}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{49}{64}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{7}{8}\\)", "\\(\\frac{7}{8}\\)", "\\(-\\frac{7}{8}\\)", "\\(\\frac{49}{64}\\)"],
+        correctAnswer: "\\(\\pm\\frac{7}{8}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{64}{81}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{8}{9}\\)", "\\(\\frac{8}{9}\\)", "\\(-\\frac{8}{9}\\)", "\\(\\frac{64}{81}\\)"],
+        correctAnswer: "\\(\\pm\\frac{8}{9}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{81}{100}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{9}{10}\\)", "\\(\\frac{9}{10}\\)", "\\(-\\frac{9}{10}\\)", "\\(\\frac{81}{100}\\)"],
+        correctAnswer: "\\(\\pm\\frac{9}{10}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{100}{121}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{10}{11}\\)", "\\(\\frac{10}{11}\\)", "\\(-\\frac{10}{11}\\)", "\\(\\frac{100}{121}\\)"],
+        correctAnswer: "\\(\\pm\\frac{10}{11}\\)"
+    },
+
+    // 유형 3: 루트를 이용해서 답을 내야 하는 문제
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{1}{2}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{1}{\\sqrt{2}}\\)", "\\(\\frac{1}{\\sqrt{2}}\\)", "\\(-\\frac{1}{\\sqrt{2}}\\)", "\\(\\frac{1}{2}\\)"],
+        correctAnswer: "\\(\\pm\\frac{1}{\\sqrt{2}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{1}{3}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{1}{\\sqrt{3}}\\)", "\\(\\frac{1}{\\sqrt{3}}\\)", "\\(-\\frac{1}{\\sqrt{3}}\\)", "\\(\\frac{1}{3}\\)"],
+        correctAnswer: "\\(\\pm\\frac{1}{\\sqrt{3}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{2}{3}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{2}}{\\sqrt{3}}\\)", "\\(\\frac{\\sqrt{2}}{\\sqrt{3}}\\)", "\\(-\\frac{\\sqrt{2}}{\\sqrt{3}}\\)", "\\(\\frac{2}{3}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{2}}{\\sqrt{3}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{3}{5}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{3}}{\\sqrt{5}}\\)", "\\(\\frac{\\sqrt{3}}{\\sqrt{5}}\\)", "\\(-\\frac{\\sqrt{3}}{\\sqrt{5}}\\)", "\\(\\frac{3}{5}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{3}}{\\sqrt{5}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{5}{8}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{5}}{\\sqrt{8}}\\)", "\\(\\frac{\\sqrt{5}}{\\sqrt{8}}\\)", "\\(-\\frac{\\sqrt{5}}{\\sqrt{8}}\\)", "\\(\\frac{5}{8}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{5}}{\\sqrt{8}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{7}{9}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{7}}{\\sqrt{9}}\\)", "\\(\\frac{\\sqrt{7}}{\\sqrt{9}}\\)", "\\(-\\frac{\\sqrt{7}}{\\sqrt{9}}\\)", "\\(\\frac{7}{9}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{7}}{\\sqrt{9}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{1}{5}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{1}{\\sqrt{5}}\\)", "\\(\\frac{1}{\\sqrt{5}}\\)", "\\(-\\frac{1}{\\sqrt{5}}\\)", "\\(\\frac{1}{5}\\)"],
+        correctAnswer: "\\(\\pm\\frac{1}{\\sqrt{5}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{2}{5}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{2}}{\\sqrt{5}}\\)", "\\(\\frac{\\sqrt{2}}{\\sqrt{5}}\\)", "\\(-\\frac{\\sqrt{2}}{\\sqrt{5}}\\)", "\\(\\frac{2}{5}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{2}}{\\sqrt{5}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{3}{7}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{3}}{\\sqrt{7}}\\)", "\\(\\frac{\\sqrt{3}}{\\sqrt{7}}\\)", "\\(-\\frac{\\sqrt{3}}{\\sqrt{7}}\\)", "\\(\\frac{3}{7}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{3}}{\\sqrt{7}}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\frac{5}{12}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\frac{\\sqrt{5}}{\\sqrt{12}}\\)", "\\(\\frac{\\sqrt{5}}{\\sqrt{12}}\\)", "\\(-\\frac{\\sqrt{5}}{\\sqrt{12}}\\)", "\\(\\frac{5}{12}\\)"],
+        correctAnswer: "\\(\\pm\\frac{\\sqrt{5}}{\\sqrt{12}}\\)"
+    },
+
+    // 유형 4: 제곱꼴의 제곱근을 구하는 문제
+    {
+        type: 'MCQ',
+        question: "\\((-2)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\)", "\\(2\\)", "\\(-2\\)", "\\(4\\)"],
+        correctAnswer: "\\(\\pm2\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-3)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm3\\)", "\\(3\\)", "\\(-3\\)", "\\(9\\)"],
+        correctAnswer: "\\(\\pm3\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-4)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm4\\)", "\\(4\\)", "\\(-4\\)", "\\(16\\)"],
+        correctAnswer: "\\(\\pm4\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-5)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm5\\)", "\\(5\\)", "\\(-5\\)", "\\(25\\)"],
+        correctAnswer: "\\(\\pm5\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-6)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm6\\)", "\\(6\\)", "\\(-6\\)", "\\(36\\)"],
+        correctAnswer: "\\(\\pm6\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-7)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm7\\)", "\\(7\\)", "\\(-7\\)", "\\(49\\)"],
+        correctAnswer: "\\(\\pm7\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-8)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm8\\)", "\\(8\\)", "\\(-8\\)", "\\(64\\)"],
+        correctAnswer: "\\(\\pm8\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-9)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm9\\)", "\\(9\\)", "\\(-9\\)", "\\(81\\)"],
+        correctAnswer: "\\(\\pm9\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-10)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm10\\)", "\\(10\\)", "\\(-10\\)", "\\(100\\)"],
+        correctAnswer: "\\(\\pm10\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\((-11)^2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm11\\)", "\\(11\\)", "\\(-11\\)", "\\(121\\)"],
+        correctAnswer: "\\(\\pm11\\)"
+    },
+
+     {
+        type: 'MCQ',
+        question: "\\(\\sqrt{16}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\)", "\\(\\pm4\\)", "\\(\\pm\\sqrt{4}\\)", "\\(\\pm\\sqrt{16}\\)"],
+        correctAnswer: "\\(\\pm2\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{25}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{5}\\)", "\\(\\pm5\\)", "\\(\\pm\\sqrt{25}\\)", "\\(\\pm25\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{5}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{36}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{6}\\)", "\\(\\pm6\\)", "\\(\\pm\\sqrt{36}\\)", "\\(\\pm12\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{6}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{49}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{7}\\)", "\\(\\pm7\\)", "\\(\\pm\\sqrt{49}\\)", "\\(\\pm14\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{7}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{64}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\sqrt{2}\\)", "\\(\\pm8\\)", "\\(\\pm\\sqrt{8}\\)", "\\(\\pm\\sqrt{64}\\)"],
+        correctAnswer: "\\(\\pm2\\sqrt{2}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{81}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm3\\)", "\\(\\pm9\\)", "\\(\\pm\\sqrt{9}\\)", "\\(\\pm\\sqrt{81}\\)"],
+        correctAnswer: "\\(\\pm3\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{100}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{10}\\)", "\\(\\pm10\\)", "\\(\\pm\\sqrt{100}\\)", "\\(\\pm20\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{10}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{121}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{11}\\)", "\\(\\pm11\\)", "\\(\\pm\\sqrt{121}\\)", "\\(\\pm22\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{11}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{144}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\sqrt{3}\\)", "\\(\\pm12\\)", "\\(\\pm\\sqrt{12}\\)", "\\(\\pm\\sqrt{144}\\)"],
+        correctAnswer: "\\(\\pm2\\sqrt{3}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(\\sqrt{169}\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{13}\\)", "\\(\\pm13\\)", "\\(\\pm\\sqrt{169}\\)", "\\(\\pm26\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{13}\\)"
+    },
+
+    // 유형 6: 루트를 이용해야 하는 문제
+    {
+        type: 'MCQ',
+        question: "\\(2\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{2}\\)", "\\(\\sqrt{2}\\)", "\\(-\\sqrt{2}\\)", "\\(2\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{2}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(3\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{3}\\)", "\\(\\sqrt{3}\\)", "\\(-\\sqrt{3}\\)", "\\(3\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{3}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(5\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{5}\\)", "\\(\\sqrt{5}\\)", "\\(-\\sqrt{5}\\)", "\\(5\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{5}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(6\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{6}\\)", "\\(\\sqrt{6}\\)", "\\(-\\sqrt{6}\\)", "\\(6\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{6}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(7\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{7}\\)", "\\(\\sqrt{7}\\)", "\\(-\\sqrt{7}\\)", "\\(7\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{7}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(8\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\sqrt{2}\\)", "\\(2\\sqrt{2}\\)", "\\(-2\\sqrt{2}\\)", "\\(8\\)"],
+        correctAnswer: "\\(\\pm2\\sqrt{2}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(10\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{10}\\)", "\\(\\sqrt{10}\\)", "\\(-\\sqrt{10}\\)", "\\(10\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{10}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(11\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{11}\\)", "\\(\\sqrt{11}\\)", "\\(-\\sqrt{11}\\)", "\\(11\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{11}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(12\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm2\\sqrt{3}\\)", "\\(2\\sqrt{3}\\)", "\\(-2\\sqrt{3}\\)", "\\(12\\)"],
+        correctAnswer: "\\(\\pm2\\sqrt{3}\\)"
+    },
+    {
+        type: 'MCQ',
+        question: "\\(13\\)의 제곱근을 구하여라.",
+        options: ["\\(\\pm\\sqrt{13}\\)", "\\(\\sqrt{13}\\)", "\\(-\\sqrt{13}\\)", "\\(13\\)"],
+        correctAnswer: "\\(\\pm\\sqrt{13}\\)"
+    }
+            ];
+
+            // 문제 수를 50개로 맞추기 위해 랜덤하게 추가
+            while (problems.length < 50) {
+                let num = Math.floor(Math.random() * 100) + 1;
+                let sqrtNum = Math.sqrt(num);
+                if (Number.isInteger(sqrtNum)) {
+                    let questionType = Math.floor(Math.random() * 3);
+                    let question, options, correctAnswer;
+
+                    if (questionType === 0) {
+                        question = `\\(${num}\\)의 제곱근을 구하여라.`;
+                        correctAnswer = `\\(\\pm ${sqrtNum}\\)`;
+                        options = [
+                            correctAnswer,
+                            `\\(${sqrtNum}\\)`,
+                            `\\(-${sqrtNum}\\)`,
+                            `\\(${num}\\)`
+                        ];
+                    } else if (questionType === 1) {
+                        question = `양의 제곱근 \\(${num}\\)을 구하여라.`;
+                        correctAnswer = `\\(${sqrtNum}\\)`;
+                        options = [
+                            correctAnswer,
+                            `\\(-${sqrtNum}\\)`,
+                            `\\(\\pm ${sqrtNum}\\)`,
+                            `\\(${num}\\)`
+                        ];
+                    } else {
+                        question = `음의 제곱근 \\(${num}\\)을 구하여라.`;
+                        correctAnswer = `\\(-${sqrtNum}\\)`;
+                        options = [
+                            correctAnswer,
+                            `\\(${sqrtNum}\\)`,
+                            `\\(\\pm ${sqrtNum}\\)`,
+                            `\\(-${num}\\)`
+                        ];
+                    }
+
+                    options = shuffleArray(options);
+                    problems.push({
+                        type: 'MCQ',
+                        question: question,
+                        options: options,
+                        correctAnswer: correctAnswer
+                    });
+                }
+            }
+
+            // 게임 시작 함수
+            window.startGame = function(selectedDifficulty) {
+                difficulty = selectedDifficulty;
+                timeLimit = difficultySettings[difficulty].time;
+                document.getElementById('start-screen').classList.remove('visible');
+                document.getElementById('game-screen').classList.add('visible');
+                score = 0;
+                lives = 3;
+                totalGameTime = 0;
+                currentQuestionIndex = 0;
+                shuffledQuestions = shuffleArray([...problems]); // 문제 목록 섞기
+                updateStats();
+                renderQuestion();
+                if (timeLimit !== null) {
+                    startEnergyBar();
+                } else {
+                    document.getElementById('energy-bar').style.display = 'none'; // 에너지 바 숨기기
+                }
+                gameStartTime = Date.now();
+                gameInterval = setInterval(() => {
+                    totalGameTime = Math.floor((Date.now() - gameStartTime) / 1000);
+                    document.getElementById('game-time').innerText = totalGameTime;
+                }, 1000);
+            }
+
+            // 배열 섞기 함수
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    let j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            // 현재 문제 렌더링 함수
+            function renderQuestion() {
+                if (currentQuestionIndex >= shuffledQuestions.length) {
+                    endGame();
+                    return;
+                }
+                const container = document.getElementById('question-container');
+                container.innerHTML = '';
+                const currentQuestion = shuffledQuestions[currentQuestionIndex];
+
+                // 옵션을 랜덤하게 섞기
+                let options = shuffleArray([...currentQuestion.options]);
+                // 정답 인덱스 찾기
+                let correctAnswerIndex = options.indexOf(currentQuestion.correctAnswer);
+
+                // 현재 질문의 정답 인덱스를 저장
+                currentQuestion.answerIndex = correctAnswerIndex;
+
+                const div = document.createElement('div');
+                div.className = 'question-container';
+                div.innerHTML = `
+                    <div class="question">${currentQuestion.question}</div>
+                    <ul class="options">
+                        ${options.map((option, index) => `<li><button class="option-button" data-option-index="${index}">${option}</button></li>`).join('')}
+                    </ul>
+                `;
+                container.appendChild(div);
+                // 옵션 버튼에 이벤트 리스너 추가
+                const optionButtons = document.querySelectorAll('.option-button');
+                optionButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const selectedOptionIndex = parseInt(this.getAttribute('data-option-index'));
+                        checkAnswer(selectedOptionIndex);
+                    });
+                });
+                MathJax.typesetPromise();
+                document.getElementById('message').innerHTML = '';
+            }
+
+            // 답안 확인 함수
+            window.checkAnswer = function(selectedOptionIndex) {
+                const currentQuestion = shuffledQuestions[currentQuestionIndex];
+                let isCorrect = false;
+                let correctAnswerIndex = currentQuestion.answerIndex;
+
+                if (selectedOptionIndex === correctAnswerIndex) {
+                    isCorrect = true;
+                    score += difficultySettings[difficulty].points;
+                    document.getElementById('message').innerHTML = '정답입니다! 🎉';
+                } else {
+                    lives--;
+                    document.getElementById('message').innerHTML = `틀렸습니다! 정답은 <strong>${currentQuestion.correctAnswer}</strong>입니다. 😢`;
+                }
+
+                updateStats();
+                highlightOptions(selectedOptionIndex, correctAnswerIndex);
+                disableOptions();
+
+                // 다음 버튼 표시
+                document.getElementById('next-button').style.display = 'inline-block';
+                if (lives <= 0) {
+                    endGame();
+                }
+            }
+
+            // 옵션 강조 표시 함수
+            function highlightOptions(selectedOptionIndex, correctAnswerIndex) {
+                const buttons = document.querySelectorAll('.option-button');
+                buttons.forEach((button, index) => {
+                    if (index === correctAnswerIndex) {
+                        button.classList.add('correct');
+                    }
+                    if (index === selectedOptionIndex && selectedOptionIndex !== correctAnswerIndex) {
+                        button.classList.add('incorrect');
+                    }
+                });
+            }
+
+            // 옵션 비활성화 함수
+            function disableOptions() {
+                const buttons = document.querySelectorAll('.option-button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                });
+            }
+
+            // 통계 업데이트 함수
+            function updateStats() {
+                document.getElementById('score').innerText = score;
+                document.getElementById('lives').innerText = lives;
+                document.getElementById('game-time').innerText = totalGameTime;
+            }
+
+            // 다음 문제로 이동하는 함수
+            window.nextQuestion = function() {
+                currentQuestionIndex++;
+                renderQuestion();
+                document.getElementById('next-button').style.display = 'none';
+                if (timeLimit !== null) {
+                    startEnergyBar();
+                }
+            }
+
+            // 게임 종료 함수
+            function endGame() {
+                clearInterval(gameInterval);
+                clearInterval(energyInterval);
+                document.getElementById('game-screen').classList.remove('visible');
+                document.getElementById('end-screen').classList.add('visible');
+                document.getElementById('final-score').innerText = score;
+                document.getElementById('final-time').innerText = totalGameTime;
+                const resultsContainer = document.getElementById('results');
+                resultsContainer.innerHTML = '<h2>정답 확인</h2>';
+                shuffledQuestions.forEach((q, index) => {
+                    resultsContainer.innerHTML += `<div class="result-item">${q.question} <br><strong>정답:</strong> ${q.correctAnswer}</div>`;
+                });
+                MathJax.typesetPromise();
+            }
+
+            // 게임 재시작 함수
+            window.restartGame = function() {
+                score = 0;
+                lives = 3;
+                totalGameTime = 0;
+                currentQuestionIndex = 0;
+                shuffledQuestions = shuffleArray([...problems]); // 문제 목록 다시 섞기
+                document.getElementById('end-screen').classList.remove('visible');
+                document.getElementById('game-screen').classList.add('visible');
+                updateStats();
+                renderQuestion();
+                if (timeLimit !== null) {
+                    startEnergyBar();
+                    document.getElementById('energy-bar').style.display = 'block'; // 에너지 바 표시
+                } else {
+                    document.getElementById('energy-bar').style.display = 'none'; // 에너지 바 숨기기
+                }
+                gameStartTime = Date.now();
+                gameInterval = setInterval(() => {
+                    totalGameTime = Math.floor((Date.now() - gameStartTime) / 1000);
+                    document.getElementById('game-time').innerText = totalGameTime;
+                }, 1000);
+            }
+
+            // 에너지 바 시작 함수
+            function startEnergyBar() {
+                clearInterval(energyInterval);
+                let energyBar = document.getElementById('energy');
+                let width = 100;
+                let decrement = 100 / (timeLimit * 10); // 에너지 바 업데이트 간격에 따라 조정
+
+                energyBar.style.width = '100%';
+                energyInterval = setInterval(() => {
+                    width -= decrement;
+                    if (width <= 0) {
+                        clearInterval(energyInterval);
+                        lives--;
+                        const currentQuestion = shuffledQuestions[currentQuestionIndex];
+                        let correctAnswerDisplay = currentQuestion.correctAnswer;
+                        document.getElementById('message').innerHTML = `시간 초과! 정답은 <strong>${correctAnswerDisplay}</strong>입니다. 😮`;
+                        updateStats();
+                        disableOptions();
+                        document.getElementById('next-button').style.display = 'inline-block';
+                        if (lives <= 0) {
+                            endGame();
+                        }
+                    } else {
+                        energyBar.style.width = width + '%';
+                    }
+                }, 100); // 0.1초마다 에너지 바 업데이트
+            }
+        };
+    </script>
+
+</body>
+</html>
